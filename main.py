@@ -1,3 +1,24 @@
+# ✅ Keep Alive Web Server Setup
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# ✅ Call this BEFORE bot starts
+keep_alive()
+
+# 🔽 Your Telegram bot logic starts here
 import time
 import json
 import base64
@@ -51,7 +72,7 @@ async def handle_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     while not all(limit_flags.values()):
         for action in ACTIONS:
             if limit_flags[action]:
-                continue  # Skip if limit already reached for this action
+                continue
 
             coin = coins_map.get(action, 12)
             payload = {
