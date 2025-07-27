@@ -38,15 +38,22 @@ async def handle_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid JWT token.")
         return
 
-    for action in ACTIONS:
-        coin = {
-            'slot_spin': 100, 'box_spin': 100, 'fortune_spin': 100,
-            'instantbonus': 500, 'mega_bonus': 300, 'dailybonus': 1000,
-            'scratch_card': 100
-        }.get(action, 12)
+    coins_map = {
+        'slot_spin': 100, 'box_spin': 100, 'fortune_spin': 100,
+        'instantbonus': 500, 'mega_bonus': 300, 'dailybonus': 1000,
+        'scratch_card': 100
+    }
 
-        limit_reached = False
-        while not limit_reached:
+    limit_flags = {action: False for action in ACTIONS}
+
+    await update.message.reply_text("🤖 Bot started. Processing all actions repeatedly until limit reached...")
+
+    while not all(limit_flags.values()):
+        for action in ACTIONS:
+            if limit_flags[action]:
+                continue  # Skip if limit already reached for this action
+
+            coin = coins_map.get(action, 12)
             payload = {
                 'sourceId': sourceId,
                 'requestId': 'req_' + str(int(time.time())),
@@ -69,14 +76,18 @@ async def handle_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 json_data = response.json()
             except Exception as e:
                 await update.message.reply_text(f"⚠️ Error during `{action}`: {str(e)}")
-                break
+                time.sleep(1)
+                continue
 
             if json_data.get("error") == "You have exceeded todays limit! Come again tomorrow.":
-                await update.message.reply_text(f"🚫 `{action}` limit reached. Moving to next.")
-                limit_reached = True
+                await update.message.reply_text(f"🚫 `{action}` limit reached. Skipping now.")
+                limit_flags[action] = True
+            elif json_data.get("error") == "Failed to process! Please try again":
+                await update.message.reply_text(f"⚠️ `{action}` failed, will retry later.")
             else:
                 await update.message.reply_text(f"✅ `{action}` completed.\n🔽 Response:\n{json.dumps(json_data, indent=2)}")
-                time.sleep(1)
+
+            time.sleep(1)
 
     await update.message.reply_text("🎉 All tasks completed for this token.")
 
