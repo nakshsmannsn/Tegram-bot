@@ -38,7 +38,6 @@ async def handle_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid JWT token.")
         return
 
-    completed = 0
     for action in ACTIONS:
         coin = {
             'slot_spin': 100, 'box_spin': 100, 'fortune_spin': 100,
@@ -46,42 +45,40 @@ async def handle_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'scratch_card': 100
         }.get(action, 12)
 
-        payload = {
-            'sourceId': sourceId,
-            'requestId': 'req_' + str(int(time.time())),
-            'uuid': uuid,
-            'coins': str(coin),
-            'exp': int(time.time()) + 3600
-        }
+        limit_reached = False
+        while not limit_reached:
+            payload = {
+                'sourceId': sourceId,
+                'requestId': 'req_' + str(int(time.time())),
+                'uuid': uuid,
+                'coins': str(coin),
+                'exp': int(time.time()) + 3600
+            }
 
-        jwt_token = jwt_encode(payload, SECRET_KEY)
-        url = f"https://app.royalspin.fun/v0/bonus/claim/{action}"
-        headers = {
-            "authorization": f"Bearer {jwt_token}",
-            "content-type": "application/json; charset=utf-8",
-            "accept-encoding": "gzip",
-            "user-agent": "okhttp/4.12.0"
-        }
+            jwt_token = jwt_encode(payload, SECRET_KEY)
+            url = f"https://app.royalspin.fun/v0/bonus/claim/{action}"
+            headers = {
+                "authorization": f"Bearer {jwt_token}",
+                "content-type": "application/json; charset=utf-8",
+                "accept-encoding": "gzip",
+                "user-agent": "okhttp/4.12.0"
+            }
 
-        try:
-            response = requests.put(url, headers=headers, json={'sid': sourceId}, timeout=10)
-            json_data = response.json()
-        except Exception as e:
-            await update.message.reply_text(f"⚠️ Error during `{action}`: {str(e)}")
-            continue
+            try:
+                response = requests.put(url, headers=headers, json={'sid': sourceId}, timeout=10)
+                json_data = response.json()
+            except Exception as e:
+                await update.message.reply_text(f"⚠️ Error during `{action}`: {str(e)}")
+                break
 
-        if json_data.get("error") == "You have exceeded todays limit! Come again tomorrow.":
-            await update.message.reply_text(f"⚠️ Skipping `{action}` - daily limit reached.")
-        else:
-            await update.message.reply_text(f"✅ `{action}` completed.\n🔽 Response:\n{json.dumps(json_data, indent=2)}")
-            completed += 1
+            if json_data.get("error") == "You have exceeded todays limit! Come again tomorrow.":
+                await update.message.reply_text(f"🚫 `{action}` limit reached. Moving to next.")
+                limit_reached = True
+            else:
+                await update.message.reply_text(f"✅ `{action}` completed.\n🔽 Response:\n{json.dumps(json_data, indent=2)}")
+                time.sleep(1)
 
-        time.sleep(1)
-
-    if completed > 0:
-        await update.message.reply_text("🎉 All tasks completed for this token.")
-    else:
-        await update.message.reply_text("✅ All actions skipped due to daily limit. Try again tomorrow.")
+    await update.message.reply_text("🎉 All tasks completed for this token.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Send your JWT token to start the auto-claim process.")
